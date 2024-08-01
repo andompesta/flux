@@ -3,7 +3,24 @@ by Black Forest Labs: https://blackforestlabs.ai. Documentation for our API can 
 
 ![grid](assets/grid.jpg)
 
-This repo contains minimal inference code to run image generation & editing with our Flux models.
+This repo contains minimal inference code to run text-to-image and image-to-image with our Flux latent rectified flow transformers.
+
+### Inference partners
+
+We are happy to partner with [Replicate](https://replicate.com/) and [FAL](https://fal.ai/). You can sample our models using their services.
+Below we list relevant links.
+
+Replicate:
+- https://replicate.com/collections/flux
+- https://replicate.com/black-forest-labs/flux-pro
+- https://replicate.com/black-forest-labs/flux-dev
+- https://replicate.com/black-forest-labs/flux-schnell
+
+FAL:
+- https://fal.ai/models/fal-ai/flux-pro
+- https://fal.ai/models/fal-ai/flux/dev
+- https://fal.ai/models/fal-ai/flux/schnell
+
 
 ## Local installation
 
