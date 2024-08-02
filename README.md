@@ -28,21 +28,8 @@ FAL:
 cd $HOME && git clone https://github.com/black-forest-labs/flux
 cd $HOME/flux
 python3.10 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[all]"
-```
-
-### Local installation with TensorRT support
-
-If you would like to install the repository with [TensorRT](https://github.com/NVIDIA/TensorRT) support, you currently need to install a PyTorch image from NVIDIA instead. First install [enroot](https://github.com/NVIDIA/enroot), next follow the steps below:
-
-```bash
-cd $HOME && git clone https://github.com/black-forest-labs/flux
-enroot import 'docker://$oauthtoken@nvcr.io#nvidia/pytorch:25.01-py3'
-enroot create -n pti2501 nvidia+pytorch+25.01-py3.sqsh
-enroot start --rw -m ${PWD}/flux:/workspace/flux -r pti2501
-cd flux
-pip install -e ".[tensorrt]" --extra-index-url https://pypi.nvidia.com
+source .venv/activate
+pip install -e '.[all]'
 ```
 
 ### Models
@@ -92,10 +79,29 @@ python -m flux --name <name> \
   --prompt "<prompt>"
 ```
 
-We also provide a streamlit demo that does both text-to-image and image-to-image. The demo can be run via
+We also provide a Streamlit demo that does both text-to-image and image-to-image. The demo can be run via
 ```bash
 streamlit run demo_st.py
 ```
+
+We also offer a Gradio-based demo for an interactive experience. To run the Gradio demo:
+```bash
+python demo_gr.py --model flux-schnell --device cuda
+```
+
+Options:
+- `--model`: Choose the model to use (options: "flux-schnell", "flux-dev")
+- `--device`: Specify the device to use (default: "cuda" if available, otherwise "cpu")
+- `--offload`: Offload model to CPU when not in use
+- `--share`: Create a public link to your demo
+
+To run the demo with the dev model and create a public link:
+
+```bash
+python -m demo_gr.py --model flux-dev --share
+```
+
+A live Gradio demo is also available on [Hugging Face](https://huggingface.co/black-forest-labs) based on 🧨 diffusers
 
 ## API usage
 
@@ -141,17 +147,4 @@ $ python -m flux.api --prompt="A beautiful beach" save outputs/api
 
 # open the image directly
 $ python -m flux.api --prompt="A beautiful beach" image show
-```
-
-## Citation
-
-If you find the provided code or models useful for your research, consider citing them as:
-
-```bib
-@misc{flux2024,
-    author={Black Forest Labs},
-    title={FLUX},
-    year={2024},
-    howpublished={\url{https://github.com/black-forest-labs/flux}},
-}
 ```

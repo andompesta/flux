@@ -1,12 +1,12 @@
 import os
 import time
-import uuid
+from io import BytesIO
 
+import torch
 import gradio as gr
 import numpy as np
-import torch
 from einops import rearrange
-from PIL import ExifTags, Image
+from PIL import Image, ExifTags
 from transformers import pipeline
 
 from flux.cli import SamplingOptions
@@ -15,21 +15,18 @@ from flux.util import configs, embed_watermark, load_ae, load_clip, load_flow_mo
 
 NSFW_THRESHOLD = 0.85
 
-
 def get_models(name: str, device: torch.device, offload: bool, is_schnell: bool):
     t5 = load_t5(device, max_length=256 if is_schnell else 512)
     clip = load_clip(device)
     model = load_flow_model(name, device="cpu" if offload else device)
     ae = load_ae(name, device="cpu" if offload else device)
-    nsfw_classifier = pipeline("image-classification", model="Falconsai/nsfw_image_detection", device=device)
+    nsfw_classifier = pipeline("image-classification", model="Falconsai/nsfw_image_detection")
     return model, ae, t5, clip, nsfw_classifier
-
 
 class FluxGenerator:
     def __init__(self, model_name: str, device: str, offload: bool):
         self.device = torch.device(device)
         self.offload = offload
-        self.model_name = model_name
         self.is_schnell = model_name == "flux-schnell"
         self.model, self.ae, self.t5, self.clip, self.nsfw_classifier = get_models(
             model_name,
@@ -51,7 +48,6 @@ class FluxGenerator:
         image2image_strength=0.0,
         add_sampling_metadata=True,
     ):
-        seed = int(seed)
         if seed == -1:
             seed = None
 
@@ -93,7 +89,7 @@ class FluxGenerator:
         )
         timesteps = get_schedule(
             opts.num_steps,
-            x.shape[-1] * x.shape[-2] // 4,
+            x.shape[-1] * x.shape[-2] // (16 * 16),
             shift=(not self.is_schnell),
         )
         if init_image is not None:
@@ -142,27 +138,24 @@ class FluxGenerator:
         nsfw_score = [x["score"] for x in self.nsfw_classifier(img) if x["label"] == "nsfw"][0]
 
         if nsfw_score < NSFW_THRESHOLD:
-            filename = f"output/gradio/{uuid.uuid4()}.jpg"
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            buffer = BytesIO()
             exif_data = Image.Exif()
             if init_image is None:
                 exif_data[ExifTags.Base.Software] = "AI generated;txt2img;flux"
             else:
                 exif_data[ExifTags.Base.Software] = "AI generated;img2img;flux"
             exif_data[ExifTags.Base.Make] = "Black Forest Labs"
-            exif_data[ExifTags.Base.Model] = self.model_name
+            exif_data[ExifTags.Base.Model] = self.model.__class__.__name__
             if add_sampling_metadata:
                 exif_data[ExifTags.Base.ImageDescription] = prompt
-            img.save(filename, format="jpeg", exif=exif_data, quality=95, subsampling=0)
+            img.save(buffer, format="jpeg", exif=exif_data, quality=95, subsampling=0)
 
-            return img, str(opts.seed), filename, None
+            img_bytes = buffer.getvalue()
+            return img, opts.seed, None
         else:
-            return None, str(opts.seed), None, "Your generated image may contain NSFW content."
+            return None, opts.seed, "Your generated image may contain NSFW content."
 
-
-def create_demo(
-    model_name: str, device: str = "cuda" if torch.cuda.is_available() else "cpu", offload: bool = False
-):
+def create_demo(model_name: str, device: str = "cuda" if torch.cuda.is_available() else "cpu", offload: bool = False):
     generator = FluxGenerator(model_name, device, offload)
     is_schnell = model_name == "flux-schnell"
 
@@ -171,27 +164,17 @@ def create_demo(
 
         with gr.Row():
             with gr.Column():
-                prompt = gr.Textbox(
-                    label="Prompt",
-                    value='a photo of a forest with mist swirling around the tree trunks. The word "FLUX" is painted over it in big, red brush strokes with visible texture',
-                )
-                do_img2img = gr.Checkbox(label="Image to Image", value=False, interactive=not is_schnell)
-                init_image = gr.Image(label="Input Image", visible=False)
-                image2image_strength = gr.Slider(
-                    0.0, 1.0, 0.8, step=0.1, label="Noising strength", visible=False
-                )
-
+                prompt = gr.Textbox(label="Prompt", value="a photo of a forest with mist swirling around the tree trunks. The word \"FLUX\" is painted over it in big, red brush strokes with visible texture")
                 with gr.Accordion("Advanced Options", open=False):
                     width = gr.Slider(128, 8192, 1360, step=16, label="Width")
                     height = gr.Slider(128, 8192, 768, step=16, label="Height")
                     num_steps = gr.Slider(1, 50, 4 if is_schnell else 50, step=1, label="Number of steps")
-                    guidance = gr.Slider(
-                        1.0, 10.0, 3.5, step=0.1, label="Guidance", interactive=not is_schnell
-                    )
-                    seed = gr.Textbox(-1, label="Seed (-1 for random)")
-                    add_sampling_metadata = gr.Checkbox(
-                        label="Add sampling parameters to metadata?", value=True
-                    )
+                    guidance = gr.Slider(1.0, 10.0, 3.5, step=0.1, label="Guidance", interactive=not is_schnell)
+                    seed = gr.Number(-1, label="Seed (-1 for random)", precision=0)
+                    do_img2img = gr.Checkbox(label="Image to Image", value=False, interactive=not is_schnell)
+                    init_image = gr.Image(label="Input Image", visible=False)
+                    image2image_strength = gr.Slider(0.0, 1.0, 0.8, step=0.1, label="Noising strength", visible=False)
+                    add_sampling_metadata = gr.Checkbox(label="Add sampling parameters to metadata?", value=True)
 
                 generate_btn = gr.Button("Generate")
 
@@ -199,7 +182,6 @@ def create_demo(
                 output_image = gr.Image(label="Generated Image")
                 seed_output = gr.Number(label="Used Seed")
                 warning_text = gr.Textbox(label="Warning", visible=False)
-                download_btn = gr.File(label="Download full-resolution")
 
         def update_img2img(do_img2img):
             return {
@@ -211,36 +193,20 @@ def create_demo(
 
         generate_btn.click(
             fn=generator.generate_image,
-            inputs=[
-                width,
-                height,
-                num_steps,
-                guidance,
-                seed,
-                prompt,
-                init_image,
-                image2image_strength,
-                add_sampling_metadata,
-            ],
-            outputs=[output_image, seed_output, download_btn, warning_text],
+            inputs=[width, height, num_steps, guidance, seed, prompt, init_image, image2image_strength, add_sampling_metadata],
+            outputs=[output_image, seed_output, warning_text],
         )
 
     return demo
 
-
 if __name__ == "__main__":
     import argparse
-
     parser = argparse.ArgumentParser(description="Flux")
-    parser.add_argument(
-        "--name", type=str, default="flux-schnell", choices=list(configs.keys()), help="Model name"
-    )
-    parser.add_argument(
-        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use"
-    )
+    parser.add_argument("--model", type=str, default="flux-schnell", choices=list(configs.keys()), help="Model name")
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use")
     parser.add_argument("--offload", action="store_true", help="Offload model to CPU when not in use")
     parser.add_argument("--share", action="store_true", help="Create a public link to your demo")
     args = parser.parse_args()
 
-    demo = create_demo(args.name, args.device, args.offload)
+    demo = create_demo(args.model, args.device, args.offload)
     demo.launch(share=args.share)
