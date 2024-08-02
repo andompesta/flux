@@ -68,7 +68,34 @@ We are offering an extensive suite of models. For more information about the inv
 | `FLUX1.1 Redux [pro]`       | [Image variation](docs/image-variation.md)                 | [Available in our API.](https://docs.bfl.ml/)                  |                                                                       |
 | `FLUX1.1 Redux [pro] Ultra` | [Image variation](docs/image-variation.md)                 | [Available in our API.](https://docs.bfl.ml/)                  |                                                                       |
 
-The weights of the autoencoder are also released under [apache-2.0](https://huggingface.co/datasets/choosealicense/licenses/blob/main/markdown/apache-2.0.md) and can be found in the HuggingFace repos above.
+The weights of the autoencoder are also released under [apache-2.0](https://huggingface.co/datasets/choosealicense/licenses/blob/main/markdown/apache-2.0.md) and can be found in either of the two HuggingFace repos above. They are the same for both models.
+
+
+## Usage
+
+The weights will be downloaded automatically from HuggingFace once you start one of the demos. To download `FLUX.1 [dev]`, you will need to be logged in, see [here](https://huggingface.co/docs/huggingface_hub/guides/cli#huggingface-cli-login).
+If you have downloaded the model weights manually, you can specify the downloaded paths via environment-variables:
+```bash
+export FLUX_SCHNELL=<path_to_flux_schnell_sft_file>
+export FLUX_DEV=<path_to_flux_dev_sft_file>
+export AE=<path_to_ae_sft_file>
+```
+
+For interactive sampling run
+```bash
+python -m flux --name <name> --loop
+```
+Or to generate a single sample run
+```bash
+python -m flux --name <name> \
+  --height <height> --width <width> \
+  --prompt "<prompt>"
+```
+
+We also provide a streamlit demo that does both text-to-image and image-to-image. The demo can be run via
+```bash
+streamlit run demo_st.py
+```
 
 ## API usage
 
