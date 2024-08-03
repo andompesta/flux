@@ -141,7 +141,7 @@ class FluxGenerator:
         nsfw_score = [x["score"] for x in self.nsfw_classifier(img) if x["label"] == "nsfw"][0]
 
         if nsfw_score < NSFW_THRESHOLD:
-            filename = f"{uuid.uuid4()}.png"
+            filename = f"{uuid.uuid4()}.jpg"
             exif_data = Image.Exif()
             if init_image is None:
                 exif_data[ExifTags.Base.Software] = "AI generated;txt2img;flux"
@@ -152,7 +152,7 @@ class FluxGenerator:
             if add_sampling_metadata:
                 exif_data[ExifTags.Base.ImageDescription] = prompt
 
-            img.save(filename, format="png", quality=100)
+            img.save(filename, format="jpeg", exif=exif_data, quality=95, subsampling=0)
 
             return img, str(opts.seed), filename, None
         else:
@@ -171,7 +171,7 @@ def create_demo(model_name: str, device: str = "cuda" if torch.cuda.is_available
                 do_img2img = gr.Checkbox(label="Image to Image", value=False, interactive=not is_schnell)
                 init_image = gr.Image(label="Input Image", visible=False)
                 image2image_strength = gr.Slider(0.0, 1.0, 0.8, step=0.1, label="Noising strength", visible=False)
-                
+
                 with gr.Accordion("Advanced Options", open=False):
                     width = gr.Slider(128, 8192, 1360, step=16, label="Width")
                     height = gr.Slider(128, 8192, 768, step=16, label="Height")
