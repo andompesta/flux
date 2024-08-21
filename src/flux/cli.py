@@ -134,19 +134,6 @@ def main(
         trt: use TensorRT backend for optimized inference
         kwargs: additional arguments for TensorRT support
     """
-
-    prompt = prompt.split("|")
-    if len(prompt) == 1:
-        prompt = prompt[0]
-        additional_prompts = None
-    else:
-        additional_prompts = prompt[1:]
-        prompt = prompt[0]
-
-    assert not (
-        (additional_prompts is not None) and loop
-    ), "Do not provide additional prompts and set loop to True"
-
     nsfw_classifier = pipeline("image-classification", model="Falconsai/nsfw_image_detection", device=device)
 
     if name not in configs:
