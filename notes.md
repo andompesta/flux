@@ -18,3 +18,20 @@
 
 1) Not clear why AE gives nan on CUDA ?
 2) T5 optim does not work due to [cleanup steps](https://gitlab-master.nvidia.com/TensorRT/Public/oss/-/blame/release/10.5/demo/Diffusion/models.py#L530), removing it makes the model work.
+
+----
+1) how to solve this
+```
+[W] Running layernorm after self-attention in FP16 may cause overflow. Exporting the model to the latest available ONNX opset (later than opset 17) to use the INormalizationLayer, or forcing layernorm layers to run in FP32 precision can help with preserving accuracy.
+```
+
+and this
+
+```
+[W] Inference failed. You may want to try enabling partitioning to see better results. Note: Error was:
+No corresponding Numpy type for Tensor Type.
+```
+
+2) why clip output is float32 and not float16. Autocast
+
+3) are we sure inputs for bfloat16 model should be in fp32 ?
