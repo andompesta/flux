@@ -8,7 +8,7 @@ import torch
 
 from flux.util import load_ae, load_clip, load_flow_model, load_t5
 
-from src.flux.trt.onnx_export import CLIPExporter, FluxExporter, T5Exporter, VAEExporter
+from src.flux.trt.onnx_export import CLIPExporter, TransformerExporter, T5Exporter, VAEExporter
 
 MODEL_CONFIG = {
     "vae": {
@@ -24,8 +24,8 @@ MODEL_CONFIG = {
         "loader": lambda device: load_t5(device, max_length=512),
     },
     "transformer": {
-        "wrapper": lambda x: FluxExporter(x, fp16=True),
-        "loader": lambda device: load_flow_model(device=device, name="flux-schnell"),
+        "wrapper": lambda x: TransformerExporter(x, fp16=True),
+        "loader": lambda device: load_flow_model(device=device, name="flux-dev"),
     },
 }
 
@@ -40,35 +40,35 @@ if __name__ == "__main__":
     width: int = 1360
     height: int = 768
 
-    base_path = "/workspace/data/flux/dd-onnx"
+    base_path = "/workspace/data/flux/dd-onnx-bf16"
     models_name = [
-        # "vae",
+        "vae",
         # "clip",
         # "t5",
-        "transformer",
+        # "transformer",
     ]
 
     for model_name in models_name:
         model_config = MODEL_CONFIG[model_name]
 
         # load model
-        model = model_config["loader"](device=device)
-        model = model.eval()
+        # model = model_config["loader"](device=device)
+        # model = model.eval()
 
-        # create model wrapper
-        model_wrapper = model_config["wrapper"](model)
-        # get sample input
-        sample_inputs = model_wrapper.get_sample_input(batch_size, height, width)
+        # # create model wrapper
+        # model_wrapper = model_config["wrapper"](model)
+        # # get sample input
+        # sample_inputs = model_wrapper.get_sample_input(batch_size, height, width)
 
-        # run torch
-        with torch.inference_mode(), torch.autocast("cuda"):
-            if isinstance(sample_inputs, tuple):
-                torch_out = model_wrapper.get_model()(*sample_inputs)
-            else:
-                torch_out = model_wrapper.get_model()(sample_inputs)
-        model = model.to("cpu")
-        torch_out = to_numpy(torch_out)
-        torch.cuda.empty_cache()
+        # # run torch
+        # with torch.inference_mode(), torch.autocast("cuda"):
+        #     if isinstance(sample_inputs, tuple):
+        #         torch_out = model_wrapper.get_model()(*sample_inputs)
+        #     else:
+        #         torch_out = model_wrapper.get_model()(sample_inputs)
+        # model = model.to("cpu")
+        # torch_out = to_numpy(torch_out)
+        # torch.cuda.empty_cache()
 
         # load onnx graph
         onnx_path = os.path.join(base_path, model_name + ".opt", "model.onnx")
@@ -76,16 +76,16 @@ if __name__ == "__main__":
         onnx.checker.check_model(onnx_path)
         print("graph structure valid")
 
-        # from google.protobuf.json_format import MessageToDict
+        from google.protobuf.json_format import MessageToDict
 
-        # onnx_model = onnx.load(onnx_path)
-        # print("inputs")
-        # for _input in onnx_model.graph.input:
-        #     print("  " + str(MessageToDict(_input)))
+        onnx_model = onnx.load(onnx_path)
+        print("inputs")
+        for _input in onnx_model.graph.input:
+            print("  " + str(MessageToDict(_input)))
 
-        # print("outputs")
-        # for _input in onnx_model.graph.output:
-        #     print("  " + str(MessageToDict(_input)))
+        print("outputs")
+        for _input in onnx_model.graph.output:
+            print("  " + str(MessageToDict(_input)))
 
         # load onnx graph
         ort_session = onnxruntime.InferenceSession(
